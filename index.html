@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>進階光學與化學模擬器 (三層介質)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0b1120; /* Very dark blue */
+            color: #f8fafc;
+            margin: 0;
+            overflow-x: hidden;
+        }
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5);
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            border-radius: 0.75rem;
+        }
+        
+        /* Custom range slider */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #ef4444; 
+            cursor: pointer;
+            margin-top: -7px;
+            box-shadow: 0 0 12px rgba(239, 68, 68, 0.8);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #334155;
+            border-radius: 3px;
+        }
+        input[type=range]:focus { outline: none; }
+        
+        select {
+            background-color: #0f172a;
+            color: #e2e8f0;
+            border: 1px solid #334155;
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 1em;
+        }
+        select:focus { border-color: #3b82f6; outline: none; }
+
+        .status-success { background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.4); color: #34d399; }
+        .status-error { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #f87171; }
+        .status-warning { background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); color: #fbbf24; }
+    </style>
+</head>
+<body class="min-h-screen p-4 xl:p-6 flex flex-col items-center">
+
+    <div class="max-w-[1400px] w-full flex flex-col gap-5 h-full">
+        
+        <!-- Header -->
+        <header class="text-center">
+            <h1 class="text-3xl font-bold text-white mb-2 tracking-wide flex items-center justify-center gap-3">
+                <span class="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_10px_#ef4444] animate-pulse"></span>
+                進階三層介質：光學與化學探究實驗室
+            </h1>
+            <p class="text-slate-400 text-sm">結合「光學折射」與「化學密度/互溶性」的差異化教學模擬</p>
+        </header>
+
+        <div class="grid grid-cols-1 xl:grid-cols-4 gap-6 flex-1 h-[800px]">
+            
+            <!-- Canvas Area (3 columns) -->
+            <div class="xl:col-span-3 glass-panel rounded-2xl p-1 relative flex flex-col h-full min-h-[500px]">
+                <canvas id="simCanvas"></canvas>
+            </div>
+
+            <!-- Controls Panel (1 column) -->
+            <div class="glass-panel rounded-2xl p-5 flex flex-col gap-6 overflow-y-auto h-full">
+                
+                <h2 class="text-lg font-semibold border-b border-slate-700 pb-2 text-slate-200">實驗參數設定</h2>
+                
+                <!-- Laser Angle -->
+                <div class="flex flex-col gap-3 bg-slate-900/50 p-4 rounded-xl border border-slate-800">
+                    <div class="flex justify-between items-center">
+                        <label class="font-medium text-slate-300 text-sm">雷射入射角 (θ₁)</label>
+                        <span id="angleValue" class="text-red-400 font-bold bg-red-950/50 border border-red-900/50 px-2 py-0.5 rounded text-sm">45.0°</span>
+                    </div>
+                    <input type="range" id="angleSlider" min="0" max="89.5" value="45" step="0.1">
+                </div>
+
+                <!-- Layer Selectors -->
+                <div class="flex flex-col gap-4">
+                    <div class="flex flex-col gap-1.5">
+                        <label class="text-sm font-medium text-slate-400">第一層 (Layer 1 - 頂部)</label>
+                        <select id="layer1Select" class="p-2.5 rounded-lg w-full text-sm font-medium"></select>
+                    </div>
+                    <div class="flex flex-col gap-1.5">
+                        <label class="text-sm font-medium text-slate-400">第二層 (Layer 2 - 中間)</label>
+                        <select id="layer2Select" class="p-2.5 rounded-lg w-full text-sm font-medium"></select>
+                    </div>
+                    <div class="flex flex-col gap-1.5">
+                        <label class="text-sm font-medium text-slate-400">第三層 (Layer 3 - 底部)</label>
+                        <select id="layer3Select" class="p-2.5 rounded-lg w-full text-sm font-medium"></select>
+                    </div>
+                </div>
+
+                <!-- Live Data View -->
+                <div class="grid grid-cols-3 gap-2 text-center mt-2">
+                    <div class="bg-slate-800/80 p-2 rounded-lg border border-slate-700">
+                        <span class="block text-[10px] text-slate-400 mb-1">介面一 折射角 θ₂</span>
+                        <span id="theta2Value" class="font-mono text-sm text-blue-400 font-bold">--</span>
+                    </div>
+                    <div class="bg-slate-800/80 p-2 rounded-lg border border-slate-700">
+                        <span class="block text-[10px] text-slate-400 mb-1">介面二 折射角 θ₃</span>
+                        <span id="theta3Value" class="font-mono text-sm text-purple-400 font-bold">--</span>
+                    </div>
+                    <div class="bg-slate-800/80 p-2 rounded-lg border border-slate-700">
+                        <span class="block text-[10px] text-slate-400 mb-1">雷射最終狀態</span>
+                        <span id="rayStatus" class="font-bold text-[11px] text-slate-300 mt-1 block">穿透</span>
+                    </div>
+                </div>
+
+                <!-- Validation Status Panel (Differentiated Instruction Core) -->
+                <div class="mt-auto flex flex-col gap-2">
+                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        物理與化學可行性檢驗
+                    </h3>
+                    <div id="validationPanel" class="p-3.5 rounded-xl text-sm space-y-2 status-success">
+                        <!-- Validation messages go here -->
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Material Database
+        const materials = {
+            air: { id: 'air', name: '空氣 (Air)', n: 1.00, density: 0.001, state: 'gas', polarity: 'non-polar', color: '#0f172a' },
+            ice: { id: 'ice', name: '冰 (Ice)', n: 1.31, density: 0.92, state: 'solid', polarity: 'polar', color: '#1e293b' },
+            water: { id: 'water', name: '純水 (Water)', n: 1.33, density: 1.00, state: 'liquid', polarity: 'polar', color: '#0f2438' },
+            ethanol: { id: 'ethanol', name: '酒精 (Ethanol)', n: 1.36, density: 0.79, state: 'liquid', polarity: 'polar', color: '#1a1f35' },
+            oil: { id: 'oil', name: '沙拉油 (Salad Oil)', n: 1.47, density: 0.91, state: 'liquid', polarity: 'non-polar', color: '#242010' },
+            glass: { id: 'glass', name: '玻璃 (Crown Glass)', n: 1.52, density: 2.50, state: 'solid', polarity: 'none', color: '#162b2b' },
+            diamond: { id: 'diamond', name: '鑽石 (Diamond)', n: 2.42, density: 3.50, state: 'solid', polarity: 'none', color: '#242a38' }
+        };
+
+        // UI Elements
+        const angleSlider = document.getElementById('angleSlider');
+        const angleValue = document.getElementById('angleValue');
+        const layer1Select = document.getElementById('layer1Select');
+        const layer2Select = document.getElementById('layer2Select');
+        const layer3Select = document.getElementById('layer3Select');
+        const validationPanel = document.getElementById('validationPanel');
+        
+        const theta2Value = document.getElementById('theta2Value');
+        const theta3Value = document.getElementById('theta3Value');
+        const rayStatus = document.getElementById('rayStatus');
+
+        // State
+        let state = {
+            angleDeg: 45.0,
+            l1: 'air',
+            l2: 'oil',    // Default stable configuration: Air -> Oil -> Water
+            l3: 'water',
+            w: 0,
+            h: 0
+        };
+
+        // Initialize Dropdowns
+        function initDropdowns() {
+            const optionsHTML = Object.values(materials).map(m => 
+                `<option value="${m.id}">${m.name} (n=${m.n.toFixed(2)}, d=${m.density})</option>`
+            ).join('');
+            
+            [layer1Select, layer2Select, layer3Select].forEach(select => {
+                select.innerHTML = optionsHTML;
+            });
+
+            layer1Select.value = state.l1;
+            layer2Select.value = state.l2;
+            layer3Select.value = state.l3;
+        }
+
+        // The Differentiated Instruction Core Logic
+        function runValidation() {
+            const m1 = materials[state.l1];
+            const m2 = materials[state.l2];
+            const m3 = materials[state.l3];
+            let errors = [];
+            let warnings = [];
+
+            // 1. Density Checks (Gravity rules)
+            // L1 on L2
+            if (m2.state !== 'solid' && m1.density > m2.density) {
+                errors.push(`【密度錯誤】${m1.name} (密度${m1.density}) 比下方的 ${m2.name} (密度${m2.density}) 重。若置於杯中，第一層會往下沉，無法形成穩定分層！`);
+            }
+            // L2 on L3
+            if (m3.state !== 'solid' && m2.density > m3.density) {
+                errors.push(`【密度錯誤】第二層的 ${m2.name} 密度大於底部的 ${m3.name}，將會往下沉。`);
+            }
+            // Solid on Gas (specifically floating without support)
+            if (m1.state === 'solid' && m2.state === 'gas') errors.push(`【重力錯誤】無法將固體的 ${m1.name} 懸空放置於 ${m2.name} 之上。`);
+            if (m2.state === 'solid' && m3.state === 'gas') errors.push(`【重力錯誤】無法將固體的 ${m2.name} 懸空放置於 ${m3.name} 之上。`);
+
+            // 2. Miscibility Checks (Chemistry rules)
+            // L1 & L2
+            if (m1.state === 'liquid' && m2.state === 'liquid' && m1.polarity === m2.polarity) {
+                const polText = m1.polarity === 'polar' ? '極性' : '非極性';
+                errors.push(`【互溶失敗】${m1.name} 與 ${m2.name} 都是「${polText}液體」，兩者會互相溶解混合，交界面將消失！`);
+            }
+            // L2 & L3
+            if (m2.state === 'liquid' && m3.state === 'liquid' && m2.polarity === m3.polarity) {
+                const polText = m2.polarity === 'polar' ? '極性' : '非極性';
+                errors.push(`【互溶失敗】第二層與第三層 (${m2.name}, ${m3.name}) 都是「${polText}液體」，會互相混合！`);
+            }
+
+            // Update UI
+            validationPanel.innerHTML = '';
+            validationPanel.className = 'p-3.5 rounded-xl text-sm space-y-2 ';
+
+            if (errors.length > 0) {
+                validationPanel.classList.add('status-error');
+                validationPanel.innerHTML = `<strong>⚠️ 實驗配置失敗：</strong><ul class="list-disc pl-4 mt-1 space-y-1">` + 
+                    errors.map(e => `<li>${e}</li>`).join('') + `</ul><p class="text-xs mt-2 opacity-80">請重新選擇介質，注意物質的狀態、密度與極性。</p>`;
+            } else if (warnings.length > 0) {
+                validationPanel.classList.add('status-warning');
+                validationPanel.innerHTML = `<strong>⚡ 注意：</strong><ul class="list-disc pl-4 mt-1">` + warnings.map(w => `<li>${w}</li>`).join('') + `</ul>`;
+            } else {
+                validationPanel.classList.add('status-success');
+                validationPanel.innerHTML = `<strong>✅ 完美的實驗配置！</strong><p class="mt-1 opacity-90">介面穩定不互溶，且符合密度分布。現在可以開始觀察光線的折射了。</p>`;
+            }
+        }
+
+        function resize() {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+            state.w = rect.width;
+            state.h = rect.height;
+            render();
+        }
+
+        function drawGlowLine(x1, y1, x2, y2, color, width, alpha, blur) {
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = width;
+            ctx.globalAlpha = alpha;
+            ctx.shadowBlur = blur;
+            ctx.shadowColor = color;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+            ctx.globalAlpha = 1.0;
+        }
+
+        function drawDashedNormal(x, y1, y2) {
+            ctx.beginPath();
+            ctx.setLineDash([5, 5]);
+            ctx.moveTo(x, y1);
+            ctx.lineTo(x, y2);
+            ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        function drawAngleLabel(x, y, text, color, offsetX, offsetY) {
+            ctx.font = 'bold 12px Inter';
+            const w = ctx.measureText(text).width;
+            const h = 20;
+            const tx = x + offsetX;
+            const ty = y + offsetY;
+            
+            // Draw background box for text readability
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1;
+            ctx.fillRect(tx - 6, ty - 14, w + 12, h);
+            ctx.strokeRect(tx - 6, ty - 14, w + 12, h);
+            
+            // Draw text
+            ctx.fillStyle = color;
+            ctx.fillText(text, tx, ty);
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, state.w, state.h);
+
+            const m1 = materials[state.l1];
+            const m2 = materials[state.l2];
+            const m3 = materials[state.l3];
+            const h3 = state.h / 3;
+
+            // 1. Draw Backgrounds
+            ctx.fillStyle = m1.color; ctx.fillRect(0, 0, state.w, h3);
+            ctx.fillStyle = m2.color; ctx.fillRect(0, h3, state.w, h3);
+            ctx.fillStyle = m3.color; ctx.fillRect(0, h3*2, state.w, h3);
+
+            // Interface lines
+            ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.moveTo(0, h3); ctx.lineTo(state.w, h3); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, h3*2); ctx.lineTo(state.w, h3*2); ctx.stroke();
+
+            // Layer Labels
+            ctx.fillStyle = 'rgba(255,255,255,0.5)';
+            ctx.font = '14px Inter';
+            ctx.fillText(`L1: ${m1.name} (n=${m1.n.toFixed(2)})`, 20, 25);
+            ctx.fillText(`L2: ${m2.name} (n=${m2.n.toFixed(2)})`, 20, h3 + 25);
+            ctx.fillText(`L3: ${m3.name} (n=${m3.n.toFixed(2)})`, 20, h3*2 + 25);
+
+            // 2. Physics Math
+            const cx = state.w / 2; // Fixed intersection point at Interface 1
+            const theta1Deg = state.angleDeg;
+            const theta1 = (theta1Deg * Math.PI) / 180;
+            const rayLen = state.h * 1.5; // Long enough to go off screen
+
+            // Interface 1 (y = h3)
+            const dx1 = h3 * Math.tan(theta1);
+            const x0 = cx - dx1; 
+            const y0 = 0;
+            
+            // Draw Normal 1
+            drawDashedNormal(cx, 0, h3*2);
+
+            // Draw Incident Ray & Label
+            drawGlowLine(x0, y0, cx, h3, '#ff3333', 3, 1, 15);
+            drawAngleLabel(cx, h3, `θ₁ = ${theta1Deg.toFixed(1)}°`, '#fca5a5', -80, -30);
+
+            // Check TIR at Interface 1
+            let sinTheta2 = (m1.n / m2.n) * Math.sin(theta1);
+            let hasTIR1 = sinTheta2 > 1.0;
+            
+            if (hasTIR1) {
+                // Total Internal Reflection 1
+                const refDx = rayLen * Math.sin(theta1);
+                const refDy = -rayLen * Math.cos(theta1);
+                drawGlowLine(cx, h3, cx + refDx, h3 + refDy, '#ff3333', 3, 1, 15);
+                drawAngleLabel(cx, h3, `反射角 = ${theta1Deg.toFixed(1)}°`, '#fca5a5', 20, -30);
+                
+                theta2Value.textContent = '全反射 (TIR)';
+                theta2Value.classList.replace('text-blue-400', 'text-red-400');
+                theta3Value.textContent = '--';
+                rayStatus.textContent = '於第一層全反射';
+                return; // End tracing
+            }
+
+            // Refraction 1
+            const theta2 = Math.asin(sinTheta2);
+            const theta2Deg = theta2 * 180 / Math.PI;
+            theta2Value.textContent = theta2Deg.toFixed(1) + '°';
+            theta2Value.classList.replace('text-red-400', 'text-blue-400');
+
+            // Draw partial reflection 1
+            const partRefDx1 = h3 * Math.sin(theta1);
+            const partRefDy1 = -h3 * Math.cos(theta1);
+            drawGlowLine(cx, h3, cx + partRefDx1, h3 + partRefDy1, '#ff3333', 2, 0.2, 5);
+
+            // Calculate intersection at Interface 2 (y = h3*2)
+            const dx2 = h3 * Math.tan(theta2);
+            const x2 = cx + dx2;
+            
+            // Draw Refracted Ray 1 (in Layer 2) & Label
+            drawGlowLine(cx, h3, x2, h3*2, '#ff3333', 3, 0.9, 12);
+            drawAngleLabel(cx, h3, `θ₂ = ${theta2Deg.toFixed(1)}°`, '#60a5fa', 20, 40);
+            
+            // Draw Normal 2
+            drawDashedNormal(x2, h3, state.h);
+            
+            // Draw Incident Angle 2 Label
+            drawAngleLabel(x2, h3*2, `θ₂ = ${theta2Deg.toFixed(1)}°`, '#60a5fa', -80, -30);
+
+            // Interface 2
+            let sinTheta3 = (m2.n / m3.n) * Math.sin(theta2);
+            let hasTIR2 = sinTheta3 > 1.0;
+
+            if (hasTIR2) {
+                // Total Internal Reflection 2 (Bounces back up into L2)
+                const refDx2 = rayLen * Math.sin(theta2);
+                const refDy2 = -rayLen * Math.cos(theta2);
+                drawGlowLine(x2, h3*2, x2 + refDx2, h3*2 + refDy2, '#ff3333', 3, 0.9, 12);
+                drawAngleLabel(x2, h3*2, `反射角 = ${theta2Deg.toFixed(1)}°`, '#60a5fa', 20, -30);
+                
+                theta3Value.textContent = '全反射 (TIR)';
+                theta3Value.classList.replace('text-purple-400', 'text-red-400');
+                rayStatus.textContent = '於第二層全反射';
+                return;
+            }
+
+            // Refraction 2
+            const theta3 = Math.asin(sinTheta3);
+            const theta3Deg = theta3 * 180 / Math.PI;
+            theta3Value.textContent = theta3Deg.toFixed(1) + '°';
+            theta3Value.classList.replace('text-red-400', 'text-purple-400');
+            rayStatus.textContent = '穿透三層介質';
+
+            // Draw partial reflection 2
+            const partRefDx2 = h3 * Math.sin(theta2);
+            const partRefDy2 = -h3 * Math.cos(theta2);
+            drawGlowLine(x2, h3*2, x2 + partRefDx2, h3*2 + partRefDy2, '#ff3333', 2, 0.2, 5);
+
+            // Draw Refracted Ray 2 (in Layer 3) & Label
+            const dx3 = rayLen * Math.sin(theta3);
+            const dy3 = rayLen * Math.cos(theta3);
+            drawGlowLine(x2, h3*2, x2 + dx3, h3*2 + dy3, '#ff3333', 3, 0.8, 10);
+            drawAngleLabel(x2, h3*2, `θ₃ = ${theta3Deg.toFixed(1)}°`, '#c084fc', 20, 40);
+        }
+
+        function updateState() {
+            state.angleDeg = parseFloat(angleSlider.value);
+            state.l1 = layer1Select.value;
+            state.l2 = layer2Select.value;
+            state.l3 = layer3Select.value;
+            
+            angleValue.textContent = state.angleDeg.toFixed(1) + '°';
+            
+            runValidation();
+            render();
+        }
+
+        // Event Listeners
+        angleSlider.addEventListener('input', updateState);
+        layer1Select.addEventListener('change', updateState);
+        layer2Select.addEventListener('change', updateState);
+        layer3Select.addEventListener('change', updateState);
+        window.addEventListener('resize', resize);
+
+        // Boot up
+        window.onload = () => {
+            initDropdowns();
+            resize();
+            updateState();
+        };
+
+    </script>
+</body>
+</html>
